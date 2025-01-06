@@ -382,6 +382,10 @@ def hpp_data_prep():
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
+import tensorflow.keras.backend as K
+
+def root_mean_squared_error(y_true, y_pred):
+    return K.sqrt(K.mean(K.square(y_pred - y_true)))
 
 
 def main():
@@ -398,7 +402,7 @@ def main():
     model.add(Dropout(0.2))
     model.add(Dense(1, activation='linear'))
 
-    model.compile(optimizer='adam', loss='root_mean_squared_error')
+    model.compile(optimizer='adam', loss=root_mean_squared_error)
 
     early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='min', restore_best_weights=True)
 
