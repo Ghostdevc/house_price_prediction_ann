@@ -320,26 +320,9 @@ def hpp_data_prep():
     df_copy = one_hot_encoder(df_copy, cat_but_car)
 
 
-    ## Final
-    #check_df(df_copy)
-
-
-    split_index = 1460
-
-    # İlk parça: 0'dan split_index'e kadar
-    preprocessed_train = df_copy.iloc[:split_index]
-
-    # İkinci parça: split_index'ten sona kadar
-    preprocessed_test = df_copy.iloc[split_index:]
-
-
-    #check_df(preprocessed_train)
-
-    preprocessed_test = preprocessed_test.drop(["SalePrice"], axis=1)
-
     #LOCAL OUTLIER FACTOR
     clf = LocalOutlierFactor(n_neighbors=20)
-    clf.fit_predict(preprocessed_train)
+    clf.fit_predict(df_copy[df_copy['SalePrice'].notna()])
 
     df_scores = clf.negative_outlier_factor_
     print(df_scores[0:5])
@@ -351,25 +334,62 @@ def hpp_data_prep():
     plt.show()
     th = np.sort(df_scores)[9]
 
-    print(preprocessed_train[df_scores < th])
+    print(df_copy.iloc[df_train.index][df_scores < th])
 
-    print(preprocessed_train[df_scores < th].shape)
-
-
-    print(preprocessed_train.describe([0.01, 0.05, 0.75, 0.90, 0.99]).T)
-
-    print(preprocessed_train[df_scores < th].index)
+    print(df_copy.iloc[df_train.index][df_scores < th].shape)
 
 
-    preprocessed_train[df_scores < th].drop(axis=0, labels=preprocessed_train[df_scores < th].index)
+    print(df_copy.iloc[df_train.index].describe([0.01, 0.05, 0.75, 0.90, 0.99]).T)
+
+    print(df_copy.iloc[df_train.index][df_scores < th].index)
 
 
-    y = np.log(preprocessed_train["SalePrice"])
-    X = preprocessed_train.drop(["SalePrice"], axis=1)
+    #df_copy.iloc[df_train.index] = df_copy.iloc[df_train.index].drop(index=df_copy.iloc[df_train.index][df_scores < th].index)
+    #df_copy.iloc[df_train.index][df_scores < th].drop(axis=0, labels=df_copy.iloc[df_train.index][df_scores < th])
+
+    #################################################
+    # ISSUE
+    #################################################
+    indices_to_drop = df_copy.iloc[df_train.index][df_scores < th].index
+    df_copy.drop(index=indices_to_drop, inplace=True)
+
+
+    ## Final
+    #check_df(df_copy)
+
+    y = np.log(df_copy["SalePrice"][df_copy['SalePrice'].notna()])
+    X = df_copy.dropna(subset=["SalePrice"]).drop(["SalePrice"], axis=1)
+
 
     rf_model = RandomForestRegressor(random_state=46, n_jobs=-1).fit(X, y)
 
-    plot_importance(rf_model, X, num=20)
+    importances = plot_importance(rf_model, X, num=90)
+
+    importances[importances['Value'] > 0.002].sort_values(by='Value', ascending=False).count()
+
+    importances['Feature'].loc[(importances['Value'] > 0.002)].count()
+
+    important_features = importances[importances['Value'] > 0.002]['Feature'].values.tolist()
+
+    important_features.append('SalePrice')
+
+    df_processed = df_copy[important_features]
+
+
+    preprocessed_train = df_processed[df_processed['SalePrice'].notna()]
+
+    preprocessed_test = df_processed[df_processed['SalePrice'].isna()]
+
+
+    #check_df(preprocessed_train)
+
+    preprocessed_test = preprocessed_test.drop(["SalePrice"], axis=1)
+
+    
+    y = np.log(preprocessed_train["SalePrice"])
+    X = preprocessed_train.drop(["SalePrice"], axis=1)
+
+    
 
     ## TO CSV
     preprocessed_train.to_csv('../house_price_prediction_ann/house_price_prediction_ann/data/train_preprocessed.csv', index = False)
@@ -391,28 +411,36 @@ def root_mean_squared_error(y_true, y_pred):
 def main():
     X, y, test_prep = hpp_data_prep()
 
-    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=46)
+    test_prep.shape
+
+    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=46)
 
     model = Sequential()
-    model.add(Dense(128, activation='relu', input_dim=x_train.shape[1]))
+    model.add(Dense(32, activation='relu', input_dim=x_train.shape[1]))
     model.add(Dropout(0.2))
-    model.add(Dense(64, activation='relu'))
+    model.add(Dense(16, activation='relu'))
     model.add(Dropout(0.2))
-    model.add(Dense(32, activation='relu'))
+    model.add(Dense(16, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(16, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(8, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(8, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(4, activation='relu'))
     model.add(Dropout(0.2))
     model.add(Dense(1))
 
     model.compile(optimizer='adam', loss=root_mean_squared_error)
 
-    early_stopping = EarlyStopping(monitor='val_loss', patience=25, verbose=1, mode='min', restore_best_weights=True)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=30, verbose=1, mode='min', restore_best_weights=True)
 
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=300, batch_size=250, callbacks=[early_stopping])
+    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10000, batch_size=32, callbacks=[early_stopping])
     #model.fit(X, y, epochs=300, batch_size=250, callbacks=[early_stopping])
 
     model_loss = pd.DataFrame(model.history.history)
-
     model_loss.plot()
-
     plt.show()
 
     predictions = model.predict(test_prep).flatten()  # 2D -> 1D'ye dönüştürülüyor
