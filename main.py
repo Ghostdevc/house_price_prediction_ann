@@ -115,7 +115,7 @@ def hpp_data_prep():
             cat_cols.remove(col)
 
 
-    check_df(df_copy)
+    #check_df(df_copy)
 
 
     num_cols_without_target = [col for col in num_cols if col not in 'SalePrice']
@@ -152,7 +152,7 @@ def hpp_data_prep():
     df_copy = quick_missing_imp_groupped(df_copy, cat_cols = cat_cols, num_cols = num_cols_without_target, missing_columns_df = missing_df)
 
 
-    rare_analyser(df_copy, cat_cols)
+    #rare_analyser(df_copy, cat_cols)
 
 
     df_copy = rare_encoder(df_copy, 0.01)
@@ -321,7 +321,7 @@ def hpp_data_prep():
 
 
     ## Final
-    check_df(df_copy)
+    #check_df(df_copy)
 
 
     split_index = 1460
@@ -333,7 +333,7 @@ def hpp_data_prep():
     preprocessed_test = df_copy.iloc[split_index:]
 
 
-    check_df(preprocessed_train)
+    #check_df(preprocessed_train)
 
     preprocessed_test = preprocessed_test.drop(["SalePrice"], axis=1)
 
@@ -400,21 +400,23 @@ def main():
     model.add(Dropout(0.2))
     model.add(Dense(32, activation='relu'))
     model.add(Dropout(0.2))
-    model.add(Dense(1, activation='linear'))
+    model.add(Dense(1))
 
     model.compile(optimizer='adam', loss=root_mean_squared_error)
 
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='min', restore_best_weights=True)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=25, verbose=1, mode='min', restore_best_weights=True)
 
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=100, batch_size=32, callbacks=[early_stopping])
+    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=300, batch_size=250, callbacks=[early_stopping])
+    #model.fit(X, y, epochs=300, batch_size=250, callbacks=[early_stopping])
 
     model_loss = pd.DataFrame(model.history.history)
 
     model_loss.plot()
 
-    predictions = model.predict(test_prep)
+    plt.show()
 
-    dictionary = {"Id":test_prep.index + 1461, "SalePrice":predictions}
+    predictions = model.predict(test_prep).flatten()  # 2D -> 1D'ye dönüştürülüyor
+    dictionary = {"Id": test_prep.index + 1461, "SalePrice": predictions}
     dfSubmission = pd.DataFrame(dictionary)
 
     #dfSubmission['SalePrice'] = pd.DataFrame(scaler.inverse_transform(dfSubmission['SalePrice']))
