@@ -388,74 +388,21 @@ def hpp_data_prep():
 
 
 
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Activation, Dropout
-from tensorflow.keras.callbacks import EarlyStopping
-import tensorflow.keras.backend as K
-
-def root_mean_squared_error(y_true, y_pred):
-    return K.sqrt(K.mean(K.square(y_pred - y_true)))
-
-
 def main():
+    
     X, y, test_prep = hpp_data_prep()
 
-    test_prep.shape
+    #x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=46)
 
-    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=46)
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+    warnings.simplefilter("ignore", category=ConvergenceWarning)
 
-    model = Sequential()
-    model.add(Dense(32, activation='relu', input_dim=x_train.shape[1]))
-    model.add(Dropout(0.2))
-    model.add(Dense(32, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(24, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(24, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(16, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(16, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(12, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(12, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(8, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(8, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(6, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(6, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(4, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(4, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(3, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(3, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(2, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(2, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(1))
+    base_models_reg(X, y)
+    best_models = hyperparameter_optimization_reg(X, y)
+    voting_reg = voting_regressor(best_models, X, y)
+    predictions = voting_reg.predict(test_prep)
 
-    model.compile(optimizer='adam', loss=root_mean_squared_error)
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=30, verbose=1, mode='min', restore_best_weights=True)
-
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10000, batch_size=32, callbacks=[early_stopping])
-    #model.fit(X, y, epochs=10000, batch_size=32, callbacks=[early_stopping])
-
-    model_loss = pd.DataFrame(model.history.history)
-    model_loss.plot()
-    plt.show()
-
-    predictions = model.predict(test_prep).flatten()  # 2D -> 1D'ye dönüştürülüyor
-    dictionary = {"Id": test_prep.index + 1461, "SalePrice": predictions}
+    dictionary = {"Id":test_prep.index + 1461, "SalePrice":predictions}
     dfSubmission = pd.DataFrame(dictionary)
 
     #dfSubmission['SalePrice'] = pd.DataFrame(scaler.inverse_transform(dfSubmission['SalePrice']))
@@ -463,10 +410,28 @@ def main():
     
     dfSubmission.to_csv("../house_price_prediction_ann/house_price_prediction_ann/data/housePricePredictions.csv", index=False)
 
-    model.save("house_price_prediction_ann_model.h5")
+    joblib.dump(voting_reg, "voting_reg.pkl")
 
-    return model
 
+    pca_df = create_pca_df_regression(X, y)
+
+    pca_df.columns
+
+    component_1_reg = sns.scatterplot(x ='PC1', y = 'SalePrice', data = pca_df)
+    component_1_reg.set_title('PC1 vs SalePrice')
+    component_1_reg.set_xlabel('PC1')
+    component_1_reg.set_ylabel('SalePrice')
+    plt.show()
+
+    component_2_reg = sns.scatterplot(x ='PC2', y = 'SalePrice', data = pca_df)
+    component_2_reg.set_title('PC2 vs SalePrice')
+    component_2_reg.set_xlabel('PC2')
+    component_2_reg.set_ylabel('SalePrice')
+    plt.show()
+
+    plot_pca_regression(pca_df, "SalePrice")
+
+    return voting_reg
 
 if __name__ == "__main__":
     print("Process Started...")
